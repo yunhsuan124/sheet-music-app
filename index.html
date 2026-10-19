@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>樂譜庫與互動閱覽器 Sheet Music Library</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#fbf7f0',
+                            100: '#f6eedf',
+                            200: '#ebd9bc',
+                            500: '#c59b27',
+                            600: '#a37b1a',
+                            800: '#523c0b',
+                            900: '#2b1e04',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Noto Sans TC"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+        .music-paper {
+            background-color: #fdfbf7;
+            background-image: radial-gradient(#e5decf 0.75px, transparent 0.75px);
+            background-size: 16px 16px;
+        }
+        .dark .music-paper {
+            background-color: #1a1917;
+            background-image: radial-gradient(#33312c 0.75px, transparent 0.75px);
+            background-size: 16px 16px;
+        }
+    </style>
+</head>
+<body class="bg-stone-100 text-stone-800 dark:bg-stone-900 dark:text-stone-100 h-full flex flex-col font-sans transition-colors duration-200">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-white/80 dark:bg-stone-800/80 backdrop-blur border-b border-stone-200 dark:border-stone-700 sticky top-0 z-30 px-4 py-3 flex items-center justify-between shadow-sm">
+        <div class="flex items-center space-x-3">
+            <button id="btn-home" class="flex items-center space-x-2 text-stone-800 dark:text-stone-100 hover:text-amber-600 dark:hover:text-amber-400 font-bold text-xl transition-colors">
+                <i class="fa-solid fa-music text-amber-600 dark:text-amber-500 text-2xl"></i>
+                <span class="tracking-wide hidden sm:inline">樂譜庫 SheetMusic</span>
+            </button>
+            <!-- Mode Indicator Badge -->
+            <span id="badge-mode" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1">
+                <i class="fa-regular fa-eye"></i> 閱覽模式
+            </span>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <!-- Mode Switcher Toggle Button -->
+            <button id="btn-switch-mode" class="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-white dark:bg-stone-200 dark:hover:bg-white dark:text-stone-900 text-xs font-bold flex items-center space-x-1.5 transition-all shadow-sm">
+                <i class="fa-solid fa-lock text-amber-400 dark:text-amber-600" id="icon-switch-mode"></i>
+                <span id="text-switch-mode">切換至後台管理</span>
+            </button>
+
+            <!-- Admin-only Buttons Container (Hidden in Reader mode) -->
+            <div id="admin-controls-header" class="hidden flex items-center space-x-2 border-l border-stone-300 dark:border-stone-600 pl-2">
+                <!-- Change Password Button -->
+                <button id="btn-change-password" class="px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 dark:bg-stone-700 dark:hover:bg-stone-600 text-stone-600 dark:text-stone-300 text-xs font-medium flex items-center space-x-1 transition-colors" title="修改後台密碼">
+                    <i class="fa-solid fa-key text-amber-600 dark:text-amber-400"></i>
+                    <span class="hidden sm:inline">變更密碼</span>
+                </button>
+
+                <!-- Reset Demo Data Button -->
+                <button id="btn-reset-demo" class="px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 dark:bg-stone-700 dark:hover:bg-stone-600 text-stone-600 dark:text-stone-300 text-xs font-medium flex items-center space-x-1 transition-colors" title="重置為初始預設樂譜">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    <span class="hidden sm:inline">重置範例</span>
+                </button>
+
+                <!-- Add Sheet Button -->
+                <button id="btn-open-add-modal" class="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium flex items-center space-x-1 shadow-sm transition-colors">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>新增樂譜</span>
+                </button>
+            </div>
+
+            <!-- Global Tools Toggle -->
+            <button id="btn-toggle-tools" class="px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 dark:bg-stone-700 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-200 text-sm font-medium flex items-center space-x-1 transition-colors">
+                <i class="fa-solid fa-drum text-amber-600 dark:text-amber-400"></i>
+                <span class="hidden md:inline">音樂輔助工具</span>
+            </button>
+
+            <!-- Dark Mode Toggle -->
+            <button id="btn-toggle-theme" class="p-2 rounded-lg text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100 transition-colors" title="切換深色/淺色模式">
+                <i class="fa-solid fa-moon text-lg dark:hidden"></i>
+                <i class="fa-solid fa-sun text-lg hidden dark:block text-amber-400"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-hidden relative flex flex-col">
+        
+        <!-- ================= Catalog Directory View ================= -->
+        <div id="view-catalog" class="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-6">
+            
+            <!-- Hero Banner / Filter Controls -->
+            <div class="bg-gradient-to-r from-amber-700 to-amber-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                <div class="absolute right-0 bottom-0 opacity-10 translate-x-8 translate-y-8 pointer-events-none">
+                    <i class="fa-solid fa-clef-treble text-[220px]"></i>
+                </div>
+                <div class="relative z-10 max-w-2xl space-y-3">
+                    <h1 class="text-2xl sm:text-3xl font-bold tracking-tight" id="banner-title">數位樂譜閱覽器</h1>
+                    <p class="text-amber-100/90 text-sm sm:text-base" id="banner-desc">專為演奏者與學生設計。點選目錄直接開啟樂譜，可搭配平滑自動捲動練習。</p>
+                    
+                    <!-- Search Input -->
+                    <div class="pt-2 flex items-center">
+                        <div class="relative w-full">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400"></i>
+                            <input type="text" id="input-search" placeholder="搜尋曲名、作曲家、關鍵字..." class="w-full pl-10 pr-4 py-2.5 rounded-xl text-stone-900 bg-white dark:bg-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-inner">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Chips & Layout Toggle -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 dark:border-stone-700 pb-4">
+                <!-- Tags Filters -->
+                <div class="flex items-center space-x-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-none flex-1" id="tag-filter-container">
+                    <!-- Dynamic tag chips inserted by JS -->
+                </div>
+
+                <!-- Manage Tags & Display Mode Toggle -->
+                <div class="flex items-center justify-between sm:justify-end space-x-3 text-sm text-stone-500 shrink-0">
+                    <!-- Manage Tags Button (Hidden in Reader mode) -->
+                    <button id="btn-open-manage-tags" class="hidden px-2.5 py-1.5 rounded-lg bg-stone-200 dark:bg-stone-700 hover:bg-stone-300 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-200 text-xs font-semibold flex items-center gap-1 transition-colors" title="管理標籤類別">
+                        <i class="fa-solid fa-tags text-amber-600 dark:text-amber-400"></i>
+                        <span>管理標籤</span>
+                    </button>
+                    <span id="sheet-count" class="font-medium">共 0 首樂譜</span>
+                    <div class="bg-stone-200 dark:bg-stone-700 p-1 rounded-lg flex space-x-1">
+                        <button id="btn-view-grid" class="p-1.5 rounded bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 shadow-sm" title="網格圖示">
+                            <i class="fa-solid fa-border-all"></i>
+                        </button>
+                        <button id="btn-view-list" class="p-1.5 rounded text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100" title="清單圖示">
+                            <i class="fa-solid fa-list"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sheets Grid/List View -->
+            <div id="sheets-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                <!-- Sheet items rendered dynamically -->
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="hidden py-16 text-center space-y-4">
+                <div class="w-16 h-16 bg-stone-200 dark:bg-stone-800 text-stone-400 rounded-full flex items-center justify-center mx-auto text-2xl">
+                    <i class="fa-solid fa-folder-open"></i>
+                </div>
+                <div class="text-stone-500 dark:text-stone-400">
+                    <p class="font-semibold text-lg">沒有找到匹配的樂譜</p>
+                    <p class="text-sm">嘗試搜尋其他關鍵字或切換標籤</p>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ================= Interactive Viewer ================= -->
+        <div id="view-viewer" class="hidden flex-1 flex flex-col bg-stone-900 overflow-hidden relative">
+            
+            <!-- Viewer Toolbar -->
+            <div class="bg-stone-800/95 text-stone-200 border-b border-stone-700 p-2.5 flex flex-wrap items-center justify-between gap-2 z-20 shadow-md">
+                <!-- Left: Back & Title Info -->
+                <div class="flex items-center space-x-3 min-w-0">
+                    <button id="btn-close-viewer" class="p-2 rounded-lg hover:bg-stone-700 text-stone-300 hover:text-white transition-colors" title="返回目錄">
+                        <i class="fa-solid fa-arrow-left text-lg"></i>
+                    </button>
+                    <div class="min-w-0">
+                        <h2 id="viewer-title" class="font-bold text-stone-100 truncate text-sm sm:text-base">曲名</h2>
+                        <p id="viewer-composer" class="text-xs text-stone-400 truncate">作曲家</p>
+                    </div>
+                </div>
+
+                <!-- Center: Zoom & Auto Scroll Controls -->
+                <div class="flex items-center space-x-1 sm:space-x-2 bg-stone-900/60 p-1 rounded-xl border border-stone-700/60">
+                    <button id="btn-zoom-out" class="p-2 rounded-lg hover:bg-stone-700 text-stone-300" title="縮小">
+                        <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <button id="btn-zoom-reset" class="px-2 text-xs font-mono text-stone-400 hover:text-stone-200" title="適應寬度">
+                        <span id="zoom-level-text">100%</span>
+                    </button>
+                    <button id="btn-zoom-in" class="p-2 rounded-lg hover:bg-stone-700 text-stone-300" title="放大">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+
+                    <div class="h-4 w-px bg-stone-700 mx-1"></div>
+
+                    <button id="btn-toggle-scroll" class="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-xs sm:text-sm font-medium flex items-center space-x-1.5 text-stone-200 border border-stone-600 transition-colors">
+                        <i class="fa-solid fa-angles-down text-amber-400" id="icon-scroll-state"></i>
+                        <span id="text-scroll-state">自動捲動</span>
+                    </button>
+                    
+                    <div class="hidden sm:flex items-center space-x-1.5 px-2 text-xs text-stone-400">
+                        <span>速度:</span>
+                        <input type="range" id="input-scroll-speed" min="1" max="10" value="3" class="w-16 accent-amber-500">
+                    </div>
+                </div>
+
+                <!-- Right: Fullscreen, Delete (Admin) & Navigation -->
+                <div class="flex items-center space-x-2">
+                    <!-- Delete current sheet (Admin only) -->
+                    <button id="btn-delete-current" class="hidden p-2 rounded-lg hover:bg-rose-900/50 text-rose-400 hover:text-rose-300 transition-colors" title="刪除此樂譜 (後台管理專用)">
+                        <i class="fa-regular fa-trash-can"></i>
+                    </button>
+
+                    <button id="btn-prev-sheet" class="p-2 rounded-lg hover:bg-stone-700 text-stone-300" title="上一首">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <button id="btn-next-sheet" class="p-2 rounded-lg hover:bg-stone-700 text-stone-300" title="下一首">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <button id="btn-fullscreen" class="p-2 rounded-lg hover:bg-stone-700 text-stone-300" title="全螢幕模式">
+                        <i class="fa-solid fa-expand"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Viewer Main Stage -->
+            <div id="viewer-stage" class="flex-1 overflow-auto music-paper p-4 sm:p-8 flex justify-center items-start">
+                <div id="viewer-canvas-wrapper" class="relative transition-all duration-150 origin-top shadow-2xl rounded-sm bg-white border border-stone-300 dark:border-stone-700">
+                    <img id="viewer-img" src="" alt="樂譜內容" class="w-full h-auto block select-none">
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ================= Musician Toolset Drawer ================= -->
+    <div id="tools-drawer" class="fixed inset-y-0 right-0 w-80 bg-stone-900/95 text-stone-100 shadow-2xl border-l border-stone-700 transform translate-x-full transition-transform duration-300 z-50 flex flex-col backdrop-blur-md">
+        <div class="p-4 border-b border-stone-800 flex items-center justify-between">
+            <div class="flex items-center space-x-2 font-bold text-amber-400">
+                <i class="fa-solid fa-sliders"></i>
+                <span>音樂練習輔助工具</span>
+            </div>
+            <button id="btn-close-tools" class="text-stone-400 hover:text-white p-1">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+
+        <div class="p-5 flex-1 overflow-y-auto space-y-8">
+            <!-- 1. Metronome Section -->
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-stone-200 flex items-center gap-2">
+                        <i class="fa-solid fa-stopwatch text-amber-500"></i>
+                        電子節拍器 (Metronome)
+                    </h3>
+                    <span id="beat-indicator" class="w-3.5 h-3.5 rounded-full bg-stone-700 transition-colors"></span>
+                </div>
+
+                <div class="bg-stone-800 p-4 rounded-xl text-center border border-stone-700/60 space-y-3">
+                    <div class="flex items-baseline justify-center space-x-1">
+                        <span id="display-bpm" class="text-4xl font-extrabold text-amber-400 font-mono">120</span>
+                        <span class="text-xs text-stone-400 font-semibold">BPM</span>
+                    </div>
+
+                    <div class="flex items-center justify-center space-x-3">
+                        <button id="btn-bpm-minus" class="w-8 h-8 rounded-lg bg-stone-700 hover:bg-stone-600 text-stone-200 font-bold">-</button>
+                        <input type="range" id="input-bpm" min="30" max="240" value="120" class="w-full accent-amber-500">
+                        <button id="btn-bpm-plus" class="w-8 h-8 rounded-lg bg-stone-700 hover:bg-stone-600 text-stone-200 font-bold">+</button>
+                    </div>
+
+                    <div class="flex items-center justify-center gap-2 pt-1">
+                        <button id="btn-metronome-toggle" class="flex-1 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm shadow transition-colors flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-play" id="icon-metronome-play"></i>
+                            <span id="text-metronome-play">啟動節拍器</span>
+                        </button>
+                        <button id="btn-tap-tempo" class="px-3 py-2 rounded-lg bg-stone-700 hover:bg-stone-600 text-xs text-stone-300 font-medium">
+                            Tap Tempo
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Tuning Reference Pitch Section -->
+            <div class="space-y-4">
+                <h3 class="font-bold text-stone-200 flex items-center gap-2">
+                    <i class="fa-solid fa-tuning-fork text-amber-500"></i>
+                    標準參考音 (Pitch Pipe)
+                </h3>
+                
+                <div class="bg-stone-800 p-4 rounded-xl border border-stone-700/60 space-y-3">
+                    <p class="text-xs text-stone-400">點擊播放標準基準音調音：</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button class="btn-pitch py-2 rounded-lg bg-stone-700 hover:bg-amber-600 text-stone-200 hover:text-white font-bold text-xs transition-colors" data-freq="261.63">C4 (261Hz)</button>
+                        <button class="btn-pitch py-2 rounded-lg bg-stone-700 hover:bg-amber-600 text-stone-200 hover:text-white font-bold text-xs transition-colors" data-freq="329.63">E4 (330Hz)</button>
+                        <button class="btn-pitch py-2 rounded-lg bg-stone-700 hover:bg-amber-600 text-stone-200 hover:text-white font-bold text-xs transition-colors" data-freq="440.00">A440 (440Hz)</button>
+                    </div>
+                    <button id="btn-stop-pitch" class="w-full py-1.5 rounded-lg bg-stone-900/60 hover:bg-stone-900 text-stone-400 hover:text-stone-200 text-xs transition-colors hidden">
+                        停止發聲
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= Tag Management Modal ================= -->
+    <div id="modal-manage-tags" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-700 space-y-4">
+            <div class="flex items-center justify-between border-b border-stone-200 dark:border-stone-700 pb-3">
+                <h3 class="font-bold text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-tags text-amber-600"></i>
+                    管理分類標籤
+                </h3>
+                <button id="btn-close-manage-tags" class="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <form id="form-add-tag" class="flex items-center gap-2">
+                <input type="text" id="input-new-tag" required placeholder="輸入新標籤名稱" class="flex-1 px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 focus:ring-2 focus:ring-amber-500 outline-none text-sm">
+                <button type="submit" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-bold shadow shrink-0">
+                    新增
+                </button>
+            </form>
+
+            <div class="space-y-2 pt-2">
+                <p class="text-xs font-bold uppercase tracking-wider text-stone-500">現有標籤清單</p>
+                <div id="manage-tag-list" class="max-h-60 overflow-y-auto space-y-2 pr-1"></div>
+            </div>
+
+            <div class="pt-3 flex justify-end border-t border-stone-200 dark:border-stone-700">
+                <button id="btn-done-manage-tags" class="px-4 py-2 bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200 hover:bg-stone-300 dark:hover:bg-stone-600 rounded-lg text-sm font-bold">
+                    完成
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= Add Sheet Music Modal ================= -->
+    <div id="modal-add-sheet" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-700 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-stone-200 dark:border-stone-700 pb-3">
+                <h3 class="font-bold text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-file-circle-plus text-amber-600"></i>
+                    新增樂譜資料 (後台)
+                </h3>
+                <button id="btn-close-modal" class="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <form id="form-add-sheet" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-1">樂譜名稱 *</label>
+                    <input type="text" id="input-title" required placeholder="例如：卡農 D大調" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 focus:ring-2 focus:ring-amber-500 outline-none text-sm">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-1">作曲家 / 歌手</label>
+                        <input type="text" id="input-composer" placeholder="例如：帕赫貝爾" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 focus:ring-2 focus:ring-amber-500 outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-1">分類標籤</label>
+                        <select id="select-tag" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 focus:ring-2 focus:ring-amber-500 outline-none text-sm">
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-1">難易度</label>
+                        <select id="select-difficulty" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 focus:ring-2 focus:ring-amber-500 outline-none text-sm">
+                            <option value="1">初級 (★☆☆☆☆)</option>
+                            <option value="2">中初級 (★★☆☆☆)</option>
+                            <option value="3" selected>中級 (★★★☆☆)</option>
+                            <option value="4">中高級 (★★★★☆)</option>
+                            <option value="5">高級 (★★★★★)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-1">樂器</label>
+                        <input type="text" id="input-instrument" placeholder="鋼琴 / 小提琴" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 focus:ring-2 focus:ring-amber-500 outline-none text-sm">
+                    </div>
+                </div>
+
+                <div class="space-y-2 border-t border-stone-200 dark:border-stone-700 pt-3">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-stone-500">樂譜圖片來源</label>
+                    <div class="space-y-3">
+                        <div>
+                            <span class="text-xs text-stone-500 block mb-1">方法 A: 上傳圖片檔案 (PNG, JPG)</span>
+                            <input type="file" id="input-file" accept="image/*" class="w-full text-xs text-stone-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100">
+                        </div>
+                        <div>
+                            <span class="text-xs text-stone-500 block mb-1">方法 B: 輸入網路圖片 URL 網址</span>
+                            <input type="url" id="input-img-url" placeholder="https://example.com/sheet.png" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 focus:ring-2 focus:ring-amber-500 outline-none text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-3 flex justify-end space-x-2 border-t border-stone-200 dark:border-stone-700">
+                    <button type="button" id="btn-cancel-add" class="px-4 py-2 rounded-lg text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700">取消</button>
+                    <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-amber-600 hover:bg-amber-700 text-white font-bold transition-colors shadow">儲存樂譜</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ================= Delete Confirmation Modal ================= -->
+    <div id="modal-delete-confirm" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-700 space-y-4">
+            <div class="flex items-center space-x-3 text-rose-600 dark:text-rose-500">
+                <div class="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+                </div>
+                <h3 class="font-bold text-lg">確定要刪除樂譜嗎？</h3>
+            </div>
+            
+            <p id="delete-modal-text" class="text-sm text-stone-600 dark:text-stone-300">
+                刪除後將無法恢復此樂譜資料。
+            </p>
+
+            <div class="pt-2 flex justify-end space-x-2">
+                <button id="btn-cancel-delete" class="px-4 py-2 rounded-lg text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700">取消</button>
+                <button id="btn-confirm-delete" class="px-4 py-2 rounded-lg text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors">確認刪除</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= Admin Password Authentication Modal ================= -->
+    <div id="modal-auth-password" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-700 space-y-4">
+            <div class="flex items-center space-x-3 text-amber-600 dark:text-amber-500">
+                <div class="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-lock text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg">解鎖後台管理</h3>
+                </div>
+            </div>
+
+            <form id="form-auth-password" class="space-y-3">
+                <div>
+                    <input type="password" id="input-admin-password" required placeholder="請輸入管理員密碼" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 focus:ring-2 focus:ring-amber-500 outline-none text-sm font-mono tracking-widest text-center">
+                    <p id="password-error-msg" class="text-xs text-rose-500 mt-1 hidden text-center font-medium">密碼錯誤，請重新輸入</p>
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" id="btn-cancel-auth" class="px-4 py-2 rounded-lg text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700">取消</button>
+                    <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-amber-600 hover:bg-amber-700 text-white font-bold transition-colors">解鎖進入</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ================= Change Password Modal ================= -->
+    <div id="modal-change-password" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-700 space-y-4">
+            <div class="flex items-center space-x-3 text-amber-600">
+                <div class="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-950/60 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-key text-lg"></i>
+                </div>
+                <h3 class="font-bold text-lg">變更管理員密碼</h3>
+            </div>
+
+            <form id="form-change-password" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-1">新密碼</label>
+                    <input type="password" id="input-new-password" required placeholder="輸入新密碼" class="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 focus:ring-2 focus:ring-amber-500 outline-none text-sm font-mono">
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" id="btn-cancel-change-pwd" class="px-4 py-2 rounded-lg text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700">取消</button>
+                    <button type="submit" class="px-4 py-2 rounded-lg text-sm bg-amber-600 hover:bg-amber-700 text-white font-bold transition-colors">儲存新密碼</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ================= JavaScript Application Logic ================= -->
+    <script>
+        // Preset Sample Sheet Data
+        const sampleSheets = [
+            {
+                id: 'sheet-1',
+                title: '卡農 D大調 (Canon in D)',
+                composer: '約翰·帕赫貝爾 (Pachelbel)',
+                tag: '古典',
+                difficulty: 3,
+                instrument: '鋼琴',
+                coverImg: createPlaceholderScoreSVG('Canon in D', 'Johann Pachelbel', 'D Major - 4/4 Time Signature'),
+                createdAt: Date.now() - 100000
+            },
+            {
+                id: 'sheet-2',
+                title: '致愛麗絲 (Für Elise)',
+                composer: '貝多芬 (Beethoven)',
+                tag: '古典',
+                difficulty: 2,
+                instrument: '鋼琴',
+                coverImg: createPlaceholderScoreSVG('Für Elise', 'L. v. Beethoven', 'A Minor - 3/8 Time Signature'),
+                createdAt: Date.now() - 200000
+            },
+            {
+                id: 'sheet-3',
+                title: '土耳其進行曲 (Turkish March)',
+                composer: '莫札特 (W. A. Mozart)',
+                tag: '古典',
+                difficulty: 4,
+                instrument: '鋼琴',
+                coverImg: createPlaceholderScoreSVG('Rondo alla Turca', 'W. A. Mozart', 'A Minor - Allegretto'),
+                createdAt: Date.now() - 300000
+            },
+            {
+                id: 'sheet-4',
+                title: '告白氣球 (Love Confession)',
+                composer: '周傑倫',
+                tag: '流行',
+                difficulty: 2,
+                instrument: '吉他 / 鋼琴',
+                coverImg: createPlaceholderScoreSVG('告白氣球', '周傑倫 (Jay Chou)', 'Pop Arrangement - C Major'),
+                createdAt: Date.now() - 400000
+            }
+        ];
+
+        const defaultCategoryTags = ['古典', '流行', '爵士', '動漫', '練習曲'];
+
+        // App State
+        let sheetsData = [];
+        let categoryTags = [];
+        let currentFilterTag = '全部';
+        let searchQuery = '';
+        let currentViewMode = 'grid';
+        let activeSheetIndex = -1;
+        let pendingDeleteId = null;
+
+        // MODE STATE: 'reader' (觀看前台) or 'admin' (管理後台)
+        let appMode = 'reader';
+        let adminPassword = '1234'; // Default password
+
+        // Viewer State
+        let currentZoom = 1.0;
+        let isAutoScrolling = false;
+        let scrollInterval = null;
+
+        // Audio State
+        let audioCtx = null;
+        let isMetronomePlaying = false;
+        let bpm = 120;
+        let metronomeTimer = null;
+        let tapTimes = [];
+        let activeOscillator = null;
+
+        function createPlaceholderScoreSVG(title, composer, subtitle) {
+            const svg = `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1100" width="100%" height="100%">
+                <rect width="800" height="1100" fill="#fdfbf7"/>
+                <text x="400" y="90" font-family="'Noto Sans TC', serif" font-size="32" font-weight="bold" text-anchor="middle" fill="#1c1917">${title}</text>
+                <text x="400" y="125" font-family="sans-serif" font-size="16" text-anchor="middle" fill="#78716c">${subtitle || ''}</text>
+                <text x="730" y="145" font-family="'Noto Sans TC', serif" font-size="18" font-weight="600" text-anchor="end" fill="#292524">${composer || ''}</text>
+                <line x1="70" y1="160" x2="730" y2="160" stroke="#a8a29e" stroke-width="1.5"/>
+
+                ${[220, 370, 520, 670, 820, 970].map(y => `
+                    <g transform="translate(0, ${y})">
+                        <line x1="70" y1="0" x2="730" y2="0" stroke="#292524" stroke-width="1.5"/>
+                        <line x1="70" y1="14" x2="730" y2="14" stroke="#292524" stroke-width="1.5"/>
+                        <line x1="70" y1="28" x2="730" y2="28" stroke="#292524" stroke-width="1.5"/>
+                        <line x1="70" y1="42" x2="730" y2="42" stroke="#292524" stroke-width="1.5"/>
+                        <line x1="70" y1="56" x2="730" y2="56" stroke="#292524" stroke-width="1.5"/>
+
+                        <line x1="70" y1="0" x2="70" y2="56" stroke="#292524" stroke-width="2"/>
+                        <line x1="235" y1="0" x2="235" y2="56" stroke="#44403c" stroke-width="1.5"/>
+                        <line x1="400" y1="0" x2="400" y2="56" stroke="#44403c" stroke-width="1.5"/>
+                        <line x1="565" y1="0" x2="565" y2="56" stroke="#44403c" stroke-width="1.5"/>
+                        <line x1="730" y1="0" x2="730" y2="56" stroke="#292524" stroke-width="2"/>
+
+                        <text x="80" y="46" font-family="serif" font-size="52" fill="#1c1917">𝄞</text>
+
+                        <circle cx="160" cy="42" r="6" fill="#1c1917"/> <line x1="166" y1="42" x2="166" y2="10" stroke="#1c1917" stroke-width="2"/>
+                        <circle cx="200" cy="28" r="6" fill="#1c1917"/> <line x1="206" y1="28" x2="206" y2="-4" stroke="#1c1917" stroke-width="2"/>
+                        <circle cx="270" cy="14" r="6" fill="#1c1917"/> <line x1="276" y1="14" x2="276" y2="-18" stroke="#1c1917" stroke-width="2"/>
+                        <circle cx="310" cy="28" r="6" fill="#1c1917"/> <line x1="316" y1="28" x2="316" y2="-4" stroke="#1c1917" stroke-width="2"/>
+                        <circle cx="440" cy="42" r="6" fill="#1c1917"/> <line x1="446" y1="42" x2="446" y2="10" stroke="#1c1917" stroke-width="2"/>
+                        <circle cx="610" cy="28" r="6" fill="#1c1917"/> <line x1="616" y1="28" x2="616" y2="-4" stroke="#1c1917" stroke-width="2"/>
+                    </g>
+                `).join('')}
+            </svg>
+            `;
+            return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSheetsData();
+            loadCategoryTags();
+            loadAdminPassword();
+            renderCategoryTags();
+            updateAddModalTagsSelect();
+            applyModeUI();
+            renderSheetsCatalog();
+            setupEventListeners();
+        });
+
+        function loadAdminPassword() {
+            const savedPwd = localStorage.getItem('sheet_music_app_password');
+            if (savedPwd) {
+                adminPassword = savedPwd;
+            }
+        }
+
+        function saveAdminPassword(newPwd) {
+            adminPassword = newPwd;
+            localStorage.setItem('sheet_music_app_password', newPwd);
+        }
+
+        function loadSheetsData() {
+            const saved = localStorage.getItem('sheet_music_app_data');
+            if (saved) {
+                try { sheetsData = JSON.parse(saved); } catch(e) { sheetsData = [...sampleSheets]; }
+            } else {
+                sheetsData = [...sampleSheets];
+            }
+        }
+
+        function saveSheetsData() {
+            localStorage.setItem('sheet_music_app_data', JSON.stringify(sheetsData));
+        }
+
+        function loadCategoryTags() {
+            const savedTags = localStorage.getItem('sheet_music_app_tags');
+            if (savedTags) {
+                try { categoryTags = JSON.parse(savedTags); } catch(e) { categoryTags = [...defaultCategoryTags]; }
+            } else {
+                categoryTags = [...defaultCategoryTags];
+            }
+        }
+
+        function saveCategoryTags() {
+            localStorage.setItem('sheet_music_app_tags', JSON.stringify(categoryTags));
+        }
+
+        // Toggle Reader / Admin Mode Logic
+        function toggleAppMode() {
+            if (appMode === 'reader') {
+                // Open password modal
+                document.getElementById('input-admin-password').value = '';
+                document.getElementById('password-error-msg').classList.add('hidden');
+                document.getElementById('modal-auth-password').classList.remove('hidden');
+                setTimeout(() => document.getElementById('input-admin-password').focus(), 100);
+            } else {
+                appMode = 'reader';
+                applyModeUI();
+                renderSheetsCatalog();
+            }
+        }
+
+        function applyModeUI() {
+            const badge = document.getElementById('badge-mode');
+            const switchBtnText = document.getElementById('text-switch-mode');
+            const switchBtnIcon = document.getElementById('icon-switch-mode');
+            const adminControls = document.getElementById('admin-controls-header');
+            const manageTagsBtn = document.getElementById('btn-open-manage-tags');
+            const deleteCurrentBtn = document.getElementById('btn-delete-current');
+
+            const bannerTitle = document.getElementById('banner-title');
+            const bannerDesc = document.getElementById('banner-desc');
+
+            if (appMode === 'admin') {
+                badge.className = "px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800 flex items-center gap-1";
+                badge.innerHTML = `<i class="fa-solid fa-user-gear"></i> 後台管理模式`;
+
+                switchBtnText.textContent = "鎖定並返回閱覽";
+                switchBtnIcon.className = "fa-solid fa-lock text-amber-400 dark:text-amber-600";
+
+                adminControls.classList.remove('hidden');
+                manageTagsBtn.classList.remove('hidden');
+                deleteCurrentBtn.classList.remove('hidden');
+
+                bannerTitle.textContent = "樂譜庫後台管理面板";
+                bannerDesc.textContent = "您可以在此管理樂譜、上傳新樂譜圖檔、管理分類標籤或清理不用的項目。";
+            } else {
+                badge.className = "px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center gap-1";
+                badge.innerHTML = `<i class="fa-regular fa-eye"></i> 閱覽模式`;
+
+                switchBtnText.textContent = "切換至後台管理";
+                switchBtnIcon.className = "fa-solid fa-lock text-amber-400 dark:text-amber-600";
+
+                adminControls.classList.add('hidden');
+                manageTagsBtn.classList.add('hidden');
+                deleteCurrentBtn.classList.add('hidden');
+
+                bannerTitle.textContent = "數位樂譜閱覽器";
+                bannerDesc.textContent = "專為演奏者與學生設計。點選目錄直接開啟樂譜，可搭配平滑自動捲動練習。";
+            }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('btn-switch-mode').addEventListener('click', toggleAppMode);
+
+            // Password Modal Listeners
+            document.getElementById('btn-cancel-auth').addEventListener('click', () => {
+                document.getElementById('modal-auth-password').classList.add('hidden');
+            });
+
+            document.getElementById('form-auth-password').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const inputPwd = document.getElementById('input-admin-password').value;
+                if (inputPwd === adminPassword) {
+                    appMode = 'admin';
+                    document.getElementById('modal-auth-password').classList.add('hidden');
+                    applyModeUI();
+                    renderSheetsCatalog();
+                } else {
+                    document.getElementById('password-error-msg').classList.remove('hidden');
+                }
+            });
+
+            // Change Password Listeners
+            const modalChangePwd = document.getElementById('modal-change-password');
+            document.getElementById('btn-change-password').addEventListener('click', () => {
+                document.getElementById('input-new-password').value = '';
+                modalChangePwd.classList.remove('hidden');
+            });
+            document.getElementById('btn-cancel-change-pwd').addEventListener('click', () => {
+                modalChangePwd.classList.add('hidden');
+            });
+            document.getElementById('form-change-password').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const newPwd = document.getElementById('input-new-password').value.trim();
+                if (newPwd) {
+                    saveAdminPassword(newPwd);
+                    modalChangePwd.classList.add('hidden');
+                    alert('後台管理密碼已成功修改！');
+                }
+            });
+
+            document.getElementById('btn-toggle-theme').addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+            });
+
+            document.getElementById('btn-reset-demo').addEventListener('click', () => {
+                if (confirm('確定要恢復預設範例樂譜資料嗎？')) {
+                    resetDemoData();
+                }
+            });
+
+            document.getElementById('input-search').addEventListener('input', (e) => {
+                searchQuery = e.target.value.trim().toLowerCase();
+                renderSheetsCatalog();
+            });
+
+            document.getElementById('btn-home').addEventListener('click', closeViewer);
+            document.getElementById('btn-close-viewer').addEventListener('click', closeViewer);
+
+            document.getElementById('btn-view-grid').addEventListener('click', () => {
+                currentViewMode = 'grid';
+                updateViewModeButtons();
+                renderSheetsCatalog();
+            });
+            document.getElementById('btn-view-list').addEventListener('click', () => {
+                currentViewMode = 'list';
+                updateViewModeButtons();
+                renderSheetsCatalog();
+            });
+
+            const toolsDrawer = document.getElementById('tools-drawer');
+            document.getElementById('btn-toggle-tools').addEventListener('click', () => {
+                toolsDrawer.classList.toggle('translate-x-full');
+            });
+            document.getElementById('btn-close-tools').addEventListener('click', () => {
+                toolsDrawer.classList.add('translate-x-full');
+            });
+
+            const modalManageTags = document.getElementById('modal-manage-tags');
+            document.getElementById('btn-open-manage-tags').addEventListener('click', () => {
+                renderTagManagerList();
+                modalManageTags.classList.remove('hidden');
+            });
+            document.getElementById('btn-close-manage-tags').addEventListener('click', () => modalManageTags.classList.add('hidden'));
+            document.getElementById('btn-done-manage-tags').addEventListener('click', () => modalManageTags.classList.add('hidden'));
+
+            document.getElementById('form-add-tag').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const newTagInput = document.getElementById('input-new-tag');
+                const newTag = newTagInput.value.trim();
+
+                if (newTag && !categoryTags.includes(newTag)) {
+                    categoryTags.push(newTag);
+                    saveCategoryTags();
+                    renderCategoryTags();
+                    updateAddModalTagsSelect();
+                    renderTagManagerList();
+                    newTagInput.value = '';
+                }
+            });
+
+            const modal = document.getElementById('modal-add-sheet');
+            document.getElementById('btn-open-add-modal').addEventListener('click', () => modal.classList.remove('hidden'));
+            document.getElementById('btn-close-modal').addEventListener('click', () => modal.classList.add('hidden'));
+            document.getElementById('btn-cancel-add').addEventListener('click', () => modal.classList.add('hidden'));
+
+            document.getElementById('btn-cancel-delete').addEventListener('click', () => {
+                document.getElementById('modal-delete-confirm').classList.add('hidden');
+                pendingDeleteId = null;
+            });
+            document.getElementById('btn-confirm-delete').addEventListener('click', executeDelete);
+
+            document.getElementById('form-add-sheet').addEventListener('submit', handleAddNewSheet);
+
+            document.getElementById('btn-zoom-in').addEventListener('click', () => setZoom(currentZoom + 0.15));
+            document.getElementById('btn-zoom-out').addEventListener('click', () => setZoom(currentZoom - 0.15));
+            document.getElementById('btn-zoom-reset').addEventListener('click', () => setZoom(1.0));
+
+            document.getElementById('btn-toggle-scroll').addEventListener('click', toggleAutoScroll);
+            document.getElementById('btn-prev-sheet').addEventListener('click', () => navigateSheet(-1));
+            document.getElementById('btn-next-sheet').addEventListener('click', () => navigateSheet(1));
+
+            document.getElementById('btn-fullscreen').addEventListener('click', toggleFullScreen);
+            
+            document.getElementById('btn-delete-current').addEventListener('click', () => {
+                if (activeSheetIndex >= 0 && activeSheetIndex < sheetsData.length) {
+                    const sheet = sheetsData[activeSheetIndex];
+                    requestDeleteSheet(sheet.id, sheet.title);
+                }
+            });
+
+            document.getElementById('input-bpm').addEventListener('input', (e) => {
+                bpm = parseInt(e.target.value);
+                document.getElementById('display-bpm').textContent = bpm;
+                if (isMetronomePlaying) restartMetronome();
+            });
+            document.getElementById('btn-bpm-minus').addEventListener('click', () => {
+                if (bpm > 30) { bpm--; updateBpmUI(); }
+            });
+            document.getElementById('btn-bpm-plus').addEventListener('click', () => {
+                if (bpm < 240) { bpm++; updateBpmUI(); }
+            });
+            document.getElementById('btn-metronome-toggle').addEventListener('click', toggleMetronome);
+            document.getElementById('btn-tap-tempo').addEventListener('click', handleTapTempo);
+
+            document.querySelectorAll('.btn-pitch').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const freq = parseFloat(e.target.dataset.freq);
+                    playReferencePitch(freq);
+                });
+            });
+            document.getElementById('btn-stop-pitch').addEventListener('click', stopReferencePitch);
+        }
+
+        function renderCategoryTags() {
+            const categories = ['全部', ...categoryTags];
+            const container = document.getElementById('tag-filter-container');
+
+            if (!categories.includes(currentFilterTag)) {
+                currentFilterTag = '全部';
+            }
+
+            container.innerHTML = categories.map(tag => `
+                <button class="tag-btn px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                    tag === currentFilterTag 
+                        ? 'bg-amber-600 text-white shadow-sm' 
+                        : 'bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-300 dark:hover:bg-stone-700'
+                }" onclick="setFilterTag('${tag}')">
+                    ${tag}
+                </button>
+            `).join('');
+        }
+
+        function setFilterTag(tag) {
+            currentFilterTag = tag;
+            renderCategoryTags();
+            renderSheetsCatalog();
+        }
+
+        function updateAddModalTagsSelect() {
+            const select = document.getElementById('select-tag');
+            select.innerHTML = categoryTags.map(tag => `
+                <option value="${tag}">${tag}</option>
+            `).join('');
+        }
+
+        function renderTagManagerList() {
+            const container = document.getElementById('manage-tag-list');
+            container.innerHTML = categoryTags.map((tag, idx) => `
+                <div class="flex items-center justify-between bg-stone-100 dark:bg-stone-700/60 p-2.5 rounded-lg border border-stone-200 dark:border-stone-600 text-sm">
+                    <span class="font-medium text-stone-800 dark:text-stone-200">${tag}</span>
+                    <button onclick="deleteCategoryTag(${idx})" class="p-1 text-stone-400 hover:text-rose-500 rounded transition-colors" title="刪除此標籤">
+                        <i class="fa-regular fa-trash-can"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function deleteCategoryTag(index) {
+            if (index >= 0 && index < categoryTags.length) {
+                categoryTags.splice(index, 1);
+                saveCategoryTags();
+                renderCategoryTags();
+                updateAddModalTagsSelect();
+                renderTagManagerList();
+                renderSheetsCatalog();
+            }
+        }
+
+        function updateViewModeButtons() {
+            const gridBtn = document.getElementById('btn-view-grid');
+            const listBtn = document.getElementById('btn-view-list');
+            if (currentViewMode === 'grid') {
+                gridBtn.className = "p-1.5 rounded bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 shadow-sm";
+                listBtn.className = "p-1.5 rounded text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100";
+            } else {
+                listBtn.className = "p-1.5 rounded bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-100 shadow-sm";
+                gridBtn.className = "p-1.5 rounded text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-100";
+            }
+        }
+
+        function renderSheetsCatalog() {
+            const container = document.getElementById('sheets-container');
+            const emptyState = document.getElementById('empty-state');
+
+            const filtered = sheetsData.filter(sheet => {
+                const matchesTag = currentFilterTag === '全部' || sheet.tag === currentFilterTag;
+                const matchesSearch = sheet.title.toLowerCase().includes(searchQuery) ||
+                                      sheet.composer.toLowerCase().includes(searchQuery);
+                return matchesTag && matchesSearch;
+            });
+
+            document.getElementById('sheet-count').textContent = `共 ${filtered.length} 首樂譜`;
+
+            if (filtered.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            if (currentViewMode === 'grid') {
+                container.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6";
+                container.innerHTML = filtered.map((sheet) => {
+                    const originalIndex = sheetsData.findIndex(s => s.id === sheet.id);
+                    return `
+                    <div class="group bg-white dark:bg-stone-800 rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700/80 shadow-sm hover:shadow-lg transition-all duration-200 flex flex-col">
+                        <div class="relative h-56 bg-stone-100 dark:bg-stone-900 overflow-hidden cursor-pointer" onclick="openViewer(${originalIndex})">
+                            <img src="${sheet.coverImg}" alt="${sheet.title}" class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                                <span class="bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow flex items-center gap-1">
+                                    <i class="fa-solid fa-book-open"></i> 開啟閱覽
+                                </span>
+                            </div>
+                            <span class="absolute top-2.5 left-2.5 bg-stone-900/80 backdrop-blur text-stone-200 text-[11px] font-semibold px-2 py-0.5 rounded-md">
+                                ${sheet.tag}
+                            </span>
+                        </div>
+
+                        <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
+                            <div>
+                                <h3 class="font-bold text-stone-900 dark:text-stone-100 truncate hover:text-amber-600 cursor-pointer" onclick="openViewer(${originalIndex})">
+                                    ${sheet.title}
+                                </h3>
+                                <p class="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
+                                    ${sheet.composer || '未知作曲家'}
+                                </p>
+                            </div>
+
+                            <div class="flex items-center justify-between text-xs border-t border-stone-100 dark:border-stone-700/60 pt-2.5">
+                                <div class="text-amber-500">
+                                    ${'★'.repeat(sheet.difficulty || 3)}${'☆'.repeat(5 - (sheet.difficulty || 3))}
+                                </div>
+                                
+                                ${appMode === 'admin' ? `
+                                    <button onclick="handleDeleteClick(event, '${sheet.id}', '${sheet.title.replace(/'/g, "\\'")}')" class="text-stone-400 hover:text-rose-500 p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors" title="刪除樂譜">
+                                        <i class="fa-regular fa-trash-can"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            } else {
+                container.className = "flex flex-col space-y-2";
+                container.innerHTML = filtered.map((sheet) => {
+                    const originalIndex = sheetsData.findIndex(s => s.id === sheet.id);
+                    return `
+                    <div class="bg-white dark:bg-stone-800 rounded-xl p-3 border border-stone-200 dark:border-stone-700 flex items-center justify-between hover:border-amber-500 transition-colors cursor-pointer" onclick="openViewer(${originalIndex})">
+                        <div class="flex items-center space-x-3 min-w-0">
+                            <div class="w-10 h-10 rounded-lg bg-amber-100 dark:bg-stone-700 text-amber-700 dark:text-amber-400 flex items-center justify-center font-bold text-sm shrink-0">
+                                <i class="fa-solid fa-music"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <h4 class="font-bold text-sm text-stone-900 dark:text-stone-100 truncate">${sheet.title}</h4>
+                                <p class="text-xs text-stone-500 dark:text-stone-400 truncate">${sheet.composer} • <span class="text-amber-600 dark:text-amber-400">${sheet.tag}</span></p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-4 shrink-0">
+                            <span class="text-amber-500 text-xs hidden sm:inline">
+                                ${'★'.repeat(sheet.difficulty || 3)}
+                            </span>
+                            ${appMode === 'admin' ? `
+                                <button onclick="handleDeleteClick(event, '${sheet.id}', '${sheet.title.replace(/'/g, "\\'")}')" class="text-stone-400 hover:text-rose-500 p-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors" title="刪除">
+                                    <i class="fa-regular fa-trash-can"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        function handleAddNewSheet(e) {
+            e.preventDefault();
+            const title = document.getElementById('input-title').value.trim();
+            const composer = document.getElementById('input-composer').value.trim() || '未知名';
+            const tag = document.getElementById('select-tag').value || '古典';
+            const difficulty = parseInt(document.getElementById('select-difficulty').value);
+            const instrument = document.getElementById('input-instrument').value.trim();
+
+            const fileInput = document.getElementById('input-file');
+            const urlInput = document.getElementById('input-img-url').value.trim();
+
+            const saveAndRenderNewSheet = (imgSrc) => {
+                const newSheet = {
+                    id: 'sheet-' + Date.now(),
+                    title,
+                    composer,
+                    tag,
+                    difficulty,
+                    instrument,
+                    coverImg: imgSrc,
+                    createdAt: Date.now()
+                };
+
+                sheetsData.unshift(newSheet);
+                saveSheetsData();
+
+                document.getElementById('form-add-sheet').reset();
+                document.getElementById('modal-add-sheet').classList.add('hidden');
+
+                renderSheetsCatalog();
+            };
+
+            if (fileInput.files && fileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function (evt) {
+                    saveAndRenderNewSheet(evt.target.result);
+                };
+                reader.readAsDataURL(fileInput.files[0]);
+            } else if (urlInput) {
+                saveAndRenderNewSheet(urlInput);
+            } else {
+                const fallbackImg = createPlaceholderScoreSVG(title, composer, `${tag} - ${instrument || '獨奏'}`);
+                saveAndRenderNewSheet(fallbackImg);
+            }
+        }
+
+        function handleDeleteClick(e, id, title) {
+            e.stopPropagation();
+            requestDeleteSheet(id, title);
+        }
+
+        function requestDeleteSheet(id, title) {
+            pendingDeleteId = id;
+            document.getElementById('delete-modal-text').textContent = `確定要刪除樂譜「${title}」嗎？這項動作無法復原。`;
+            document.getElementById('modal-delete-confirm').classList.remove('hidden');
+        }
+
+        function executeDelete() {
+            if (!pendingDeleteId) return;
+
+            const targetId = pendingDeleteId;
+            pendingDeleteId = null;
+
+            sheetsData = sheetsData.filter(s => s.id !== targetId);
+            saveSheetsData();
+
+            document.getElementById('modal-delete-confirm').classList.add('hidden');
+
+            if (!document.getElementById('view-viewer').classList.contains('hidden')) {
+                closeViewer();
+            }
+
+            renderSheetsCatalog();
+        }
+
+        function resetDemoData() {
+            const userAdded = sheetsData.filter(s => !sampleSheets.some(sample => sample.id === s.id));
+            sheetsData = [...sampleSheets, ...userAdded];
+            categoryTags = [...defaultCategoryTags];
+            saveCategoryTags();
+            saveSheetsData();
+            renderCategoryTags();
+            updateAddModalTagsSelect();
+            renderSheetsCatalog();
+        }
+
+        function openViewer(index) {
+            if (index < 0 || index >= sheetsData.length) return;
+            activeSheetIndex = index;
+            const sheet = sheetsData[index];
+
+            document.getElementById('viewer-title').textContent = sheet.title;
+            document.getElementById('viewer-composer').textContent = `${sheet.composer} • ${sheet.tag}`;
+            document.getElementById('viewer-img').src = sheet.coverImg;
+
+            document.getElementById('view-catalog').classList.add('hidden');
+            document.getElementById('view-viewer').classList.remove('hidden');
+
+            setZoom(1.0);
+            stopAutoScroll();
+        }
+
+        function closeViewer() {
+            stopAutoScroll();
+            document.getElementById('view-viewer').classList.add('hidden');
+            document.getElementById('view-catalog').classList.remove('hidden');
+        }
+
+        function navigateSheet(direction) {
+            const newIndex = activeSheetIndex + direction;
+            if (newIndex >= 0 && newIndex < sheetsData.length) {
+                openViewer(newIndex);
+            }
+        }
+
+        function setZoom(zoom) {
+            currentZoom = Math.max(0.5, Math.min(2.5, zoom));
+            const wrapper = document.getElementById('viewer-canvas-wrapper');
+            wrapper.style.width = `${currentZoom * 100}%`;
+            document.getElementById('zoom-level-text').textContent = `${Math.round(currentZoom * 100)}%`;
+        }
+
+        function toggleAutoScroll() {
+            if (isAutoScrolling) {
+                stopAutoScroll();
+            } else {
+                startAutoScroll();
+            }
+        }
+
+        function startAutoScroll() {
+            isAutoScrolling = true;
+            const btn = document.getElementById('btn-toggle-scroll');
+            const icon = document.getElementById('icon-scroll-state');
+            const text = document.getElementById('text-scroll-state');
+
+            btn.classList.replace('bg-stone-800', 'bg-amber-600');
+            icon.className = "fa-solid fa-pause text-white";
+            text.textContent = "暫停捲動";
+
+            const stage = document.getElementById('viewer-stage');
+            
+            if (scrollInterval) clearInterval(scrollInterval);
+            scrollInterval = setInterval(() => {
+                const speed = parseInt(document.getElementById('input-scroll-speed').value);
+                stage.scrollTop += speed * 0.8;
+
+                if (stage.scrollTop + stage.clientHeight >= stage.scrollHeight - 5) {
+                    stopAutoScroll();
+                }
+            }, 30);
+        }
+
+        function stopAutoScroll() {
+            isAutoScrolling = false;
+            if (scrollInterval) clearInterval(scrollInterval);
+
+            const btn = document.getElementById('btn-toggle-scroll');
+            const icon = document.getElementById('icon-scroll-state');
+            const text = document.getElementById('text-scroll-state');
+
+            btn.classList.replace('bg-amber-600', 'bg-stone-800');
+            icon.className = "fa-solid fa-angles-down text-amber-400";
+            text.textContent = "自動捲動";
+        }
+
+        function toggleFullScreen() {
+            const viewerElem = document.getElementById('view-viewer');
+            if (!document.fullscreenElement) {
+                viewerElem.requestFullscreen().catch(err => alert(`無法進入全螢幕: ${err.message}`));
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function initAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function updateBpmUI() {
+            document.getElementById('display-bpm').textContent = bpm;
+            document.getElementById('input-bpm').value = bpm;
+            if (isMetronomePlaying) restartMetronome();
+        }
+
+        function toggleMetronome() {
+            initAudioContext();
+            if (isMetronomePlaying) {
+                stopMetronome();
+            } else {
+                startMetronome();
+            }
+        }
+
+        function startMetronome() {
+            isMetronomePlaying = true;
+            document.getElementById('text-metronome-play').textContent = "停止節拍器";
+            document.getElementById('icon-metronome-play').className = "fa-solid fa-square";
+
+            const intervalMs = (60 / bpm) * 1000;
+            playClickSound();
+
+            metronomeTimer = setInterval(() => {
+                playClickSound();
+            }, intervalMs);
+        }
+
+        function stopMetronome() {
+            isMetronomePlaying = false;
+            if (metronomeTimer) clearInterval(metronomeTimer);
+            document.getElementById('text-metronome-play').textContent = "啟動節拍器";
+            document.getElementById('icon-metronome-play').className = "fa-solid fa-play";
+            document.getElementById('beat-indicator').className = "w-3.5 h-3.5 rounded-full bg-stone-700 transition-colors";
+        }
+
+        function restartMetronome() {
+            stopMetronome();
+            startMetronome();
+        }
+
+        function playClickSound() {
+            if (!audioCtx) return;
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+
+            gain.gain.setValueAtTime(1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.05);
+
+            const indicator = document.getElementById('beat-indicator');
+            indicator.className = "w-3.5 h-3.5 rounded-full bg-amber-400 shadow-md shadow-amber-500/50 transition-colors";
+            setTimeout(() => {
+                indicator.className = "w-3.5 h-3.5 rounded-full bg-stone-700 transition-colors";
+            }, 100);
+        }
+
+        function handleTapTempo() {
+            const now = Date.now();
+            tapTimes.push(now);
+
+            if (tapTimes.length > 4) tapTimes.shift();
+
+            if (tapTimes.length >= 2) {
+                const intervals = [];
+                for (let i = 1; i < tapTimes.length; i++) {
+                    intervals.push(tapTimes[i] - tapTimes[i - 1]);
+                }
+                const avgInterval = intervals.reduce((a, b) => a + b) / intervals.length;
+                const calculatedBpm = Math.round(60000 / avgInterval);
+
+                if (calculatedBpm >= 30 && calculatedBpm <= 240) {
+                    bpm = calculatedBpm;
+                    updateBpmUI();
+                }
+            }
+        }
+
+        function playReferencePitch(freq) {
+            initAudioContext();
+            stopReferencePitch();
+
+            activeOscillator = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            activeOscillator.type = 'sine';
+            activeOscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+
+            activeOscillator.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            activeOscillator.start();
+            document.getElementById('btn-stop-pitch').classList.remove('hidden');
+        }
+
+        function stopReferencePitch() {
+            if (activeOscillator) {
+                activeOscillator.stop();
+                activeOscillator.disconnect();
+                activeOscillator = null;
+            }
+            document.getElementById('btn-stop-pitch').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
